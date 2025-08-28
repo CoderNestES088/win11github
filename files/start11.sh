@@ -2,45 +2,51 @@
 
 # Working directory
 WORKDIR="$HOME/win11-novnc"
-ISO_PATH="$WORKDIR/Win11Lite.iso"
-IMG_PATH="$WORKDIR/win11.img"
-QEMU_DIR="$WORKDIR/qemu"
+ISO_NAME="Windows+X-Lite%5D+Micro+11+23H2+v2.iso"
+ISO_PATH="$WORKDIR/$ISO_NAME"
+IMG_PATH="$WORKDIR/win11.qcow2"
+NOVNC_DIR="$WORKDIR/novnc"
 
 mkdir -p "$WORKDIR"
-mkdir -p "$QEMU_DIR"
 cd "$WORKDIR"
 
-# 1️⃣ Download prebuilt QEMU if missing
-if [ ! -f "$QEMU_DIR/qemu-system-x86_64" ]; then
-    echo "Downloading prebuilt QEMU..."
-    wget -O "$QEMU_DIR/qemu.tar.xz" "https://download.qemu.org/qemu-8.2.0.tar.xz"
-    tar -xf qemu.tar.xz -C "$QEMU_DIR" --strip-components=1
-    chmod +x "$QEMU_DIR/qemu-system-x86_64"
+echo "Updating system and installing required packages..."
+sudo apt update
+sudo apt upgrade -y
+
+sudo apt install -y \
+    qemu-system qemu-utils qemu-kvm virt-manager \
+    wget curl git python3 python3-pip novnc x11vnc net-tools unzip
+
+# Install/upgrade websockify
+sudo pip3 install --upgrade websockify
+
+# Clone noVNC if missing
+if [ ! -d "$NOVNC_DIR" ]; then
+    echo "Downloading noVNC..."
+    git clone https://github.com/novnc/noVNC.git "$NOVNC_DIR"
 fi
 
-# 2️⃣ Install Python3 + websockify/noVNC
-sudo apt-get update
-sudo apt-get install -y python3 python3-pip wget curl novnc websockify x11vnc || true
-
-# 3️⃣ Download ISO if missing
+# Download ISO if missing
 if [ ! -f "$ISO_PATH" ]; then
     echo "Downloading Windows 11 Lite ISO..."
-    wget --progress=bar:force -O "$ISO_PATH" "https://download1527.mediafire.com/vkk7erux05yg0T7UOiqYHKxju2L8vaiX4VVxpELWbOxckzrQvIWo-wjxOrXF1ZoMbSVQJfTZry6awLjJGlIIY-thoAqqMgKKWoURDi93YgAqYV1gFXTCcfleEEsx5mYCxLdUUAiMbSL2NCO0yrqkgNdlVGxkgLek7yTqW2Dq_fI/x3911f43epuvpcf/%5BWindows+X-Lite%5D+Micro+11+23H2+v2.iso"
+    wget --progress=bar:force -O "$ISO_PATH" "https://download1527.mediafire.com/vkk7erux05yg0T7UOiqYHKxju2L8vaiX4VVxpELWbOxckzrQvIWo-wjxOrXF1ZoMbSVQJfTZry6awLjJGlIIY-thoAqqMgKKWoURDi93YgAqYV1gFXTCcfleEEsx5mYCxLdUUAiMbSL2NCO0yrqkgNdlVGxkgLek7yTqW2Dq_fI/x3911f43epuvpcf/$ISO_NAME"
 fi
 
-# 4️⃣ Create VM disk if missing
+# Create new virtual disk if missing
 if [ ! -f "$IMG_PATH" ]; then
-    echo "Creating virtual disk (40G)..."
-    "$QEMU_DIR/qemu-img" create -f qcow2 "$IMG_PATH" 40G
+    echo "Creating new virtual disk: win11.qcow2 (40G)..."
+    qemu-img create -f qcow2 "$IMG_PATH" 40G
 fi
 
-# 5️⃣ Kill previous instances
+# Kill previous instances
 pkill -f qemu-system-x86_64
 pkill -f websockify
 
-# 6️⃣ Start QEMU VM
+# Start QEMU VM
 echo "Starting Windows 11 Lite in QEMU..."
-"$QEMU_DIR/qemu-system-x86_64" \
+qemu-system-x86_64 \
+    -enable-kvm \
     -m 4G \
     -cpu host \
     -smp 2 \
@@ -50,13 +56,17 @@ echo "Starting Windows 11 Lite in QEMU..."
     -vnc :0 \
     -vga virtio &
 
-sleep 3
+sleep 5
 
-# 7️⃣ Start noVNC
-echo "Starting noVNC on port 8080..."
-websockify --web=/usr/share/novnc/ 8080 localhost:5900 &
+# Start noVNC / websockify at the end
+echo "Launching noVNC on port 8080..."
+"$NOVNC_DIR/utils/novnc_proxy" --vnc localhost:5900 --listen 8080 &
+
+# Confirm port 8080
+sleep 2
+echo "Checking open ports..."
+ss -tulpn | grep 8080 || echo "Port 8080 not detected. noVNC may not be running."
 
 echo "Setup complete! Open your browser at http://localhost:8080"
-
 
 
