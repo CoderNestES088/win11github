@@ -58,35 +58,12 @@ EOL
 chmod +x ~/.vnc/xstartup
 
 # ----------------------------
-# Black loading page while ISO downloads
-# ----------------------------
-LOADING_HTML="$NOVNC_DIR/loading.html"
-cat > "$LOADING_HTML" <<EOL
-<!DOCTYPE html>
-<html>
-<head>
-<title>Windows 11 Lite Loading</title>
-<style>
-  body { background-color: black; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; font-size: 24px; }
-</style>
-</head>
-<body>
-<div>Downloading Windows 11 Lite... Please wait.</div>
-</body>
-</html>
-EOL
-
-xdg-open "$LOADING_HTML"
-
-# ----------------------------
 # Download ISO if missing
 # ----------------------------
 if [ ! -f "$ISO_PATH" ]; then
     echo "Downloading Windows 11 Lite ISO..."
     wget --progress=bar:force -O "$ISO_PATH" "https://download1527.mediafire.com/vkk7erux05yg0T7UOiqYHKxju2L8vaiX4VVxpELWbOxckzrQvIWo-wjxOrXF1ZoMbSVQJfTZry6awLjJGlIIY-thoAqqMgKKWoURDi93YgAqYV1gFXTCcfleEEsx5mYCxLdUUAiMbSL2NCO0yrqkgNdlVGxkgLek7yTqW2Dq_fI/x3911f43epuvpcf/$ISO_NAME"
 fi
-
-rm "$LOADING_HTML"
 
 # ----------------------------
 # Create QCOW2 disk if missing
@@ -113,6 +90,12 @@ Xvnc $VNC_DISPLAY -geometry 1920x1080 -depth 24 -rfbport $VNC_PORT -SecurityType
 sleep 5
 
 # ----------------------------
+# Start noVNC forwarding port 8080 → 5901
+# ----------------------------
+echo "Launching noVNC on port $NOVNC_PORT..."
+"$NOVNC_DIR/utils/novnc_proxy" --vnc localhost:$VNC_PORT --listen $NOVNC_PORT &
+
+# ----------------------------
 # Start QEMU VM connected to TigerVNC
 # ----------------------------
 echo "Launching QEMU VM connected to TigerVNC..."
@@ -130,11 +113,8 @@ qemu-system-x86_64 \
 sleep 5
 
 # ----------------------------
-# Start noVNC forwarding 8080 → 5901
+# Correct browser URL (no directory listing)
 # ----------------------------
-echo "Launching noVNC on port $NOVNC_PORT..."
-"$NOVNC_DIR/utils/novnc_proxy" --vnc localhost:$VNC_PORT --listen $NOVNC_PORT &
-
-echo "Setup complete! Connect via browser: http://localhost:$NOVNC_PORT"
-
+echo "Setup complete! Connect via browser:"
+echo "http://localhost:$NOVNC_PORT/vnc.html?host=localhost&port=$NOVNC_PORT"
 
