@@ -54,8 +54,7 @@ qemu-system-x86_64 \
     -cdrom "$ISO_PATH" \
     -boot d \
     -vnc :0 \
-    -vga virtio \
-    &
+    -vga virtio &
 
 sleep 5
 
