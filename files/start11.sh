@@ -1,53 +1,121 @@
 #!/bin/bash
 
-# Working directory
+# ----------------------------
+# Directories and files
+# ----------------------------
 WORKDIR="$HOME/win11-novnc"
 ISO_NAME="Windows+X-Lite%5D+Micro+11+23H2+v2.iso"
 ISO_PATH="$WORKDIR/$ISO_NAME"
 IMG_PATH="$WORKDIR/win11.qcow2"
 NOVNC_DIR="$WORKDIR/novnc"
+VNC_DISPLAY=":1"
+VNC_PORT=5901
+NOVNC_PORT=8080
 
 mkdir -p "$WORKDIR"
 cd "$WORKDIR"
 
-echo "Removing OpenSSH server if installed..."
+# ----------------------------
+# Remove OpenSSH (avoid prompts)
+# ----------------------------
 sudo apt remove -y openssh-server openssh-client
 sudo apt purge -y openssh-server openssh-client
 
-echo "Updating system and installing required packages..."
+# ----------------------------
+# Add QEMU PPA
+# ----------------------------
+sudo apt install -y software-properties-common
+sudo add-apt-repository -y ppa:jacob/virtualisation
 sudo apt update
-sudo apt upgrade -y
+
+# ----------------------------
+# Install required packages
+# ----------------------------
 sudo apt install -y \
     qemu qemu-kvm qemu-utils virt-manager \
+    tigervnc-standalone-server tigervnc-common \
     wget curl git python3 python3-pip novnc x11vnc net-tools unzip
 
-# Install/upgrade websockify
+# Upgrade websockify
 sudo pip3 install --upgrade websockify
 
+# ----------------------------
 # Clone noVNC if missing
+# ----------------------------
 if [ ! -d "$NOVNC_DIR" ]; then
-    echo "Downloading noVNC..."
     git clone https://github.com/novnc/noVNC.git "$NOVNC_DIR"
 fi
 
+# ----------------------------
+# Create VNC xstartup file
+# ----------------------------
+mkdir -p ~/.vnc
+cat > ~/.vnc/xstartup <<EOL
+#!/bin/sh
+unset SESSION_MANAGER
+unset DBUS_SESSION_BUS_ADDRESS
+EOL
+chmod +x ~/.vnc/xstartup
+
+# ----------------------------
+# Black loading page while ISO downloads
+# ----------------------------
+LOADING_HTML="$NOVNC_DIR/loading.html"
+cat > "$LOADING_HTML" <<EOL
+<!DOCTYPE html>
+<html>
+<head>
+<title>Windows 11 Lite Loading</title>
+<style>
+  body { background-color: black; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; font-size: 24px; }
+</style>
+</head>
+<body>
+<div>Downloading Windows 11 Lite... Please wait.</div>
+</body>
+</html>
+EOL
+
+xdg-open "$LOADING_HTML"
+
+# ----------------------------
 # Download ISO if missing
+# ----------------------------
 if [ ! -f "$ISO_PATH" ]; then
     echo "Downloading Windows 11 Lite ISO..."
     wget --progress=bar:force -O "$ISO_PATH" "https://download1527.mediafire.com/vkk7erux05yg0T7UOiqYHKxju2L8vaiX4VVxpELWbOxckzrQvIWo-wjxOrXF1ZoMbSVQJfTZry6awLjJGlIIY-thoAqqMgKKWoURDi93YgAqYV1gFXTCcfleEEsx5mYCxLdUUAiMbSL2NCO0yrqkgNdlVGxkgLek7yTqW2Dq_fI/x3911f43epuvpcf/$ISO_NAME"
 fi
 
+rm "$LOADING_HTML"
+
+# ----------------------------
 # Create QCOW2 disk if missing
+# ----------------------------
 if [ ! -f "$IMG_PATH" ]; then
     echo "Creating new virtual disk: win11.qcow2 (40G)..."
     qemu-img create -f qcow2 "$IMG_PATH" 40G
 fi
 
-# Kill any previous instances
+# ----------------------------
+# Kill previous instances
+# ----------------------------
 pkill -f qemu-system-x86_64
+pkill -f Xvnc
 pkill -f websockify
 
-# Start QEMU VM with VNC
-echo "Starting Windows 11 Lite in QEMU..."
+# ----------------------------
+# Start TigerVNC server
+# ----------------------------
+echo "Starting TigerVNC server on display $VNC_DISPLAY..."
+vncpasswd -f <<< ""  # no password; optional
+Xvnc $VNC_DISPLAY -geometry 1920x1080 -depth 24 -rfbport $VNC_PORT -SecurityTypes None &
+
+sleep 5
+
+# ----------------------------
+# Start QEMU VM connected to TigerVNC
+# ----------------------------
+echo "Launching QEMU VM connected to TigerVNC..."
 qemu-system-x86_64 \
     -enable-kvm \
     -m 4G \
@@ -56,21 +124,17 @@ qemu-system-x86_64 \
     -hda "$IMG_PATH" \
     -cdrom "$ISO_PATH" \
     -boot d \
-    -vnc :0 \
+    -vnc $VNC_DISPLAY \
     -vga virtio &
 
 sleep 5
 
-# Start noVNC / websockify at the end
-echo "Launching noVNC on port 8080..."
-"$NOVNC_DIR/utils/novnc_proxy" --vnc localhost:5900 --listen 8080 &
+# ----------------------------
+# Start noVNC forwarding 8080 → 5901
+# ----------------------------
+echo "Launching noVNC on port $NOVNC_PORT..."
+"$NOVNC_DIR/utils/novnc_proxy" --vnc localhost:$VNC_PORT --listen $NOVNC_PORT &
 
-# Confirm port 8080
-sleep 2
-echo "Checking open ports..."
-ss -tulpn | grep 8080 || echo "Port 8080 not detected. noVNC may not be running."
-
-echo "Setup complete! Open your browser at http://localhost:8080"
-
+echo "Setup complete! Connect via browser: http://localhost:$NOVNC_PORT"
 
 
