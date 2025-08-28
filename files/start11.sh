@@ -87,13 +87,22 @@ echo "Starting TigerVNC server on display $VNC_DISPLAY..."
 vncpasswd -f <<< ""  # no password; optional
 Xvnc $VNC_DISPLAY -geometry 1920x1080 -depth 24 -rfbport $VNC_PORT -SecurityTypes None &
 
-sleep 5
+# ----------------------------
+# Wait for TigerVNC port to be ready
+# ----------------------------
+echo "Waiting for TigerVNC to start..."
+while ! nc -z localhost $VNC_PORT; do
+    sleep 1
+done
+echo "TigerVNC is ready!"
 
 # ----------------------------
 # Start noVNC forwarding port 8080 → 5901
 # ----------------------------
 echo "Launching noVNC on port $NOVNC_PORT..."
-"$NOVNC_DIR/utils/novnc_proxy" --vnc localhost:$VNC_PORT --listen $NOVNC_PORT &
+cd "$NOVNC_DIR"
+./utils/novnc_proxy --vnc localhost:$VNC_PORT --listen $NOVNC_PORT &
+cd "$WORKDIR"
 
 # ----------------------------
 # Start QEMU VM connected to TigerVNC
@@ -105,16 +114,4 @@ qemu-system-x86_64 \
     -cpu host \
     -smp 2 \
     -hda "$IMG_PATH" \
-    -cdrom "$ISO_PATH" \
-    -boot d \
-    -vnc $VNC_DISPLAY \
-    -vga virtio &
-
-sleep 5
-
-# ----------------------------
-# Correct browser URL (no directory listing)
-# ----------------------------
-echo "Setup complete! Connect via browser:"
-echo "http://localhost:$NOVNC_PORT/vnc.html?host=localhost&port=$NOVNC_PORT"
-
+    -cdrom "$ISO
