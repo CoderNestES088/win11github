@@ -10,12 +10,15 @@ NOVNC_DIR="$WORKDIR/novnc"
 mkdir -p "$WORKDIR"
 cd "$WORKDIR"
 
+echo "Removing OpenSSH server if installed..."
+sudo apt remove -y openssh-server openssh-client
+sudo apt purge -y openssh-server openssh-client
+
 echo "Updating system and installing required packages..."
 sudo apt update
 sudo apt upgrade -y
-
 sudo apt install -y \
-    qemu-system qemu-utils qemu-kvm virt-manager \
+    qemu qemu-kvm qemu-utils virt-manager \
     wget curl git python3 python3-pip novnc x11vnc net-tools unzip
 
 # Install/upgrade websockify
@@ -68,5 +71,6 @@ echo "Checking open ports..."
 ss -tulpn | grep 8080 || echo "Port 8080 not detected. noVNC may not be running."
 
 echo "Setup complete! Open your browser at http://localhost:8080"
+
 
 
