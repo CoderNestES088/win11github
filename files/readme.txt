@@ -1,0 +1,1 @@
+Hey! I do not promote any ilgeal actvities in rdp or vnc hacking This file or any is for educational purposes only i do not promote any misuse of pc please use this sevice use terms of services correctly i am not resposble for the misuse account suspension or data loss 
