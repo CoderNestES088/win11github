@@ -33,17 +33,17 @@ if [ ! -f "$ISO_PATH" ]; then
     wget --progress=bar:force -O "$ISO_PATH" "https://download1527.mediafire.com/vkk7erux05yg0T7UOiqYHKxju2L8vaiX4VVxpELWbOxckzrQvIWo-wjxOrXF1ZoMbSVQJfTZry6awLjJGlIIY-thoAqqMgKKWoURDi93YgAqYV1gFXTCcfleEEsx5mYCxLdUUAiMbSL2NCO0yrqkgNdlVGxkgLek7yTqW2Dq_fI/x3911f43epuvpcf/$ISO_NAME"
 fi
 
-# Create new virtual disk if missing
+# Create QCOW2 disk if missing
 if [ ! -f "$IMG_PATH" ]; then
     echo "Creating new virtual disk: win11.qcow2 (40G)..."
     qemu-img create -f qcow2 "$IMG_PATH" 40G
 fi
 
-# Kill previous instances
+# Kill any previous instances
 pkill -f qemu-system-x86_64
 pkill -f websockify
 
-# Start QEMU VM
+# Start QEMU VM with VNC
 echo "Starting Windows 11 Lite in QEMU..."
 qemu-system-x86_64 \
     -enable-kvm \
@@ -54,7 +54,8 @@ qemu-system-x86_64 \
     -cdrom "$ISO_PATH" \
     -boot d \
     -vnc :0 \
-    -vga virtio &
+    -vga virtio \
+    &
 
 sleep 5
 
