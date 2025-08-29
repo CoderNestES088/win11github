@@ -8,7 +8,8 @@ sudo apt update
 sudo apt install -y \
     qemu-system-x86 qemu-utils qemu-kvm \
     tigervnc-standalone-server tigervnc-common \
-    netcat-openbsd wget curl git python3 python3-pip npm nodejs
+    netcat-openbsd wget curl git python3 python3-pip npm nodejs \
+    aria2
 
 # ----------------------------
 # Install noVNC and Websockify
@@ -31,7 +32,7 @@ ISO_PATH="$WORKDIR/Windows_11_Lite.iso"
 
 if [ ! -f "$ISO_PATH" ]; then
     echo "Downloading Windows 11 Lite ISO..."
-    wget -O "$ISO_PATH" "$ISO_URL"
+    aria2c -x 16 -s 16 -o "$ISO_PATH" "$ISO_URL"
 else
     echo "ISO already downloaded."
 fi
@@ -49,37 +50,4 @@ fi
 
 # ----------------------------
 # Start TigerVNC server
-# ----------------------------
-VNC_DISPLAY=":1"
-VNC_PASSWORD="1234" # you can change
-mkdir -p "$HOME/.vnc"
-echo "$VNC_PASSWORD" | vncpasswd -f > "$HOME/.vnc/passwd"
-chmod 600 "$HOME/.vnc/passwd"
-
-echo "Starting TigerVNC server on display $VNC_DISPLAY..."
-Xvnc $VNC_DISPLAY -geometry 1920x1080 -depth 24 -rfbauth "$HOME/.vnc/passwd" -nolisten tcp -SecurityTypes=VncAuth &
-
-# Wait for VNC server
-sleep 5
-
-# ----------------------------
-# Start QEMU with Windows 11
-# ----------------------------
-echo "Starting QEMU..."
-qemu-system-x86_64 \
-    -enable-kvm \
-    -m 4G \
-    -cpu host \
-    -smp 2 \
-    -vnc :1 \
-    -hda "$IMG_PATH" \
-    -cdrom "$ISO_PATH" \
-    -boot d &
-
-# ----------------------------
-# Start noVNC
-# ----------------------------
-NOVNC_PORT=8080
-echo "Starting noVNC on port $NOVNC_PORT..."
-websockify $NOVNC_PORT localhost:5901 &
-echo "noVNC running at http://localhost:$NOVNC_PORT"
+# ---------------------------
