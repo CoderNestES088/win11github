@@ -1,20 +1,37 @@
 #!/bin/bash
 
-# Path to your Windows 11 Lite disk image
-IMG_PATH="/data/data/com.termux/files/home/win11-lite.img"
+# -----------------------
+# Configurable variables
+# -----------------------
 
-# VM settings
-MEMORY=4096          # RAM in MB
-CPUS=2               # Number of CPU cores
+IMG_PATH="$HOME/win11-lite.img"      # Path to Windows 11 Lite image
+NOVNC_DIR="$HOME/noVNC"              # Local noVNC clone
+MEMORY=4096                          # VM RAM
+CPUS=2                               # VM CPUs
+VNC_DISPLAY=:1                        # VNC display
+NOVNC_PORT=6080                       # noVNC web port
 
-# VNC/novnc settings
-VNC_DISPLAY=:1       # VNC display number (5900 + 1 = 5901)
-NOVNC_PORT=6080      # Browser access port
+# -----------------------
+# Check for QEMU image
+# -----------------------
+if [ ! -f "$IMG_PATH" ]; then
+    echo "ERROR: Windows 11 Lite image not found at $IMG_PATH"
+    echo "Please download or move 'win11-lite.img' to $HOME"
+    exit 1
+fi
 
-# Check if QEMU is installed
-command -v qemu-system-x86_64 >/dev/null 2>&1 || { echo >&2 "QEMU not installed. Aborting."; exit 1; }
+# -----------------------
+# Check for noVNC
+# -----------------------
+if [ ! -d "$NOVNC_DIR" ]; then
+    echo "noVNC not found, cloning..."
+    git clone https://github.com/novnc/noVNC.git "$NOVNC_DIR"
+fi
 
-# Start Windows 11 Lite with fixes
+# -----------------------
+# Start QEMU
+# -----------------------
+echo "Starting Windows 11 Lite VM..."
 qemu-system-x86_64 \
   -m $MEMORY \
   -smp $CPUS \
@@ -25,10 +42,12 @@ qemu-system-x86_64 \
   -usb -device usb-tablet \
   -net nic -net user &
 
-# Wait a bit for QEMU to start
 sleep 3
 
-# Start noVNC web interface
-websockify $NOVNC_PORT localhost:$(expr 5900 + ${VNC_DISPLAY#:}) --web=/usr/share/novnc/ &
+# -----------------------
+# Start noVNC
+# -----------------------
+echo "Starting noVNC..."
+websockify $NOVNC_PORT localhost:$(expr 5900 + ${VNC_DISPLAY#:}) --web=$NOVNC_DIR &
 
 echo "Windows 11 Lite should be accessible via http://localhost:$NOVNC_PORT/"
