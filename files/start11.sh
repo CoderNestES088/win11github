@@ -1,53 +1,34 @@
 #!/bin/bash
-set -e
 
-# ----------------------------
-# Update and install dependencies
-# ----------------------------
-sudo apt update
-sudo apt install -y \
-    qemu-system-x86 qemu-utils qemu-kvm \
-    tigervnc-standalone-server tigervnc-common \
-    netcat-openbsd wget curl git python3 python3-pip npm nodejs \
-    aria2
+# Path to your Windows 11 Lite disk image
+IMG_PATH="/data/data/com.termux/files/home/win11-lite.img"
 
-# ----------------------------
-# Install noVNC and Websockify
-# ----------------------------
-sudo pip3 install --upgrade websockify
-sudo npm install -g @novnc/novnc
+# VM settings
+MEMORY=4096          # RAM in MB
+CPUS=2               # Number of CPU cores
 
-# ----------------------------
-# Create working directory
-# ----------------------------
-WORKDIR="$HOME/win11-novnc"
-mkdir -p "$WORKDIR"
-cd "$WORKDIR"
+# VNC/novnc settings
+VNC_DISPLAY=:1       # VNC display number (5900 + 1 = 5901)
+NOVNC_PORT=6080      # Browser access port
 
-# ----------------------------
-# Download Windows 11 Lite ISO
-# ----------------------------
-ISO_URL="https://download1527.mediafire.com/vkk7erux05yg0T7UOiqYHKxju2L8vaiX4VVxpELWbOxckzrQvIWo-wjxOrXF1ZoMbSVQJfTZry6awLjJGlIIY-thoAqqMgKKWoURDi93YgAqYV1gFXTCcfleEEsx5mYCxLdUUAiMbSL2NCO0yrqkgNdlVGxkgLek7yTqW2Dq_fI/x3911f43epuvpcf/Windows+X-Lite%5D+Micro+11+23H2+v2.iso"
-ISO_PATH="$WORKDIR/Windows_11_Lite.iso"
+# Check if QEMU is installed
+command -v qemu-system-x86_64 >/dev/null 2>&1 || { echo >&2 "QEMU not installed. Aborting."; exit 1; }
 
-if [ ! -f "$ISO_PATH" ]; then
-    echo "Downloading Windows 11 Lite ISO..."
-    aria2c -x 16 -s 16 -o "$ISO_PATH" "$ISO_URL"
-else
-    echo "ISO already downloaded."
-fi
+# Start Windows 11 Lite with fixes
+qemu-system-x86_64 \
+  -m $MEMORY \
+  -smp $CPUS \
+  -cpu host \
+  -hda "$IMG_PATH" \
+  -vga qxl \
+  -display vnc=$VNC_DISPLAY \
+  -usb -device usb-tablet \
+  -net nic -net user &
 
-# ----------------------------
-# Create QCOW2 virtual disk
-# ----------------------------
-IMG_PATH="$WORKDIR/win11.qcow2"
-if [ ! -f "$IMG_PATH" ]; then
-    echo "Creating new virtual disk: win11.qcow2 (40G)..."
-    qemu-img create -f qcow2 "$IMG_PATH" 40G
-else
-    echo "Virtual disk already exists."
-fi
+# Wait a bit for QEMU to start
+sleep 3
 
-# ----------------------------
-# Start TigerVNC server
-# ---------------------------
+# Start noVNC web interface
+websockify $NOVNC_PORT localhost:$(expr 5900 + ${VNC_DISPLAY#:}) --web=/usr/share/novnc/ &
+
+echo "Windows 11 Lite should be accessible via http://localhost:$NOVNC_PORT/"
