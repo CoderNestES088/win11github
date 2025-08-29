@@ -16,23 +16,22 @@ mkdir -p "$WORKDIR"
 cd "$WORKDIR"
 
 # ----------------------------
-# Remove OpenSSH (avoid prompts)
+# Remove OpenSSH (optional)
 # ----------------------------
 sudo apt remove -y openssh-server openssh-client
 sudo apt purge -y openssh-server openssh-client
 
 # ----------------------------
-# Add QEMU PPA
+# Add QEMU PPA and update
 # ----------------------------
 sudo apt install -y software-properties-common
 sudo add-apt-repository -y ppa:jacob/virtualisation
 sudo apt update
 
 # ----------------------------
-# Install required packages
+# Install dependencies
 # ----------------------------
-sudo apt install -y \
-    qemu qemu-kvm qemu-utils virt-manager \
+sudo apt install -y qemu qemu-kvm qemu-utils virt-manager \
     tigervnc-standalone-server tigervnc-common \
     wget curl git python3 python3-pip novnc x11vnc net-tools unzip
 
@@ -47,7 +46,7 @@ if [ ! -d "$NOVNC_DIR" ]; then
 fi
 
 # ----------------------------
-# Create VNC xstartup file
+# VNC xstartup
 # ----------------------------
 mkdir -p ~/.vnc
 cat > ~/.vnc/xstartup <<EOL
@@ -88,16 +87,16 @@ vncpasswd -f <<< ""  # no password; optional
 Xvnc $VNC_DISPLAY -geometry 1920x1080 -depth 24 -rfbport $VNC_PORT -SecurityTypes None &
 
 # ----------------------------
-# Wait for TigerVNC port to be ready
+# Wait for TigerVNC to be ready
 # ----------------------------
-echo "Waiting for TigerVNC to start..."
+echo "Waiting for TigerVNC..."
 while ! nc -z localhost $VNC_PORT; do
     sleep 1
 done
-echo "TigerVNC is ready!"
+echo "TigerVNC ready!"
 
 # ----------------------------
-# Start noVNC forwarding port 8080 → 5901
+# Start noVNC on port 8080
 # ----------------------------
 echo "Launching noVNC on port $NOVNC_PORT..."
 cd "$NOVNC_DIR"
@@ -107,11 +106,23 @@ cd "$WORKDIR"
 # ----------------------------
 # Start QEMU VM connected to TigerVNC
 # ----------------------------
-echo "Launching QEMU VM connected to TigerVNC..."
+echo "Launching QEMU VM..."
 qemu-system-x86_64 \
     -enable-kvm \
     -m 4G \
     -cpu host \
     -smp 2 \
     -hda "$IMG_PATH" \
-    -cdrom "$ISO
+    -cdrom "$ISO_PATH" \
+    -boot d \
+    -vnc $VNC_DISPLAY \
+    -vga virtio &
+
+sleep 5
+
+# ----------------------------
+# Browser access
+# ----------------------------
+echo "Setup complete!"
+echo "Open in browser:"
+echo "http://localhost:$NOVNC_PORT/vnc.html?host=localhost&port=$NOVNC_PORT"
