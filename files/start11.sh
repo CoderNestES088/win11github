@@ -1,13 +1,9 @@
 #!/bin/bash
 
-# ----------------------------
-# Directories and files
-# ----------------------------
 WORKDIR="$HOME/win11-novnc"
 ISO_NAME="Windows+X-Lite%5D+Micro+11+23H2+v2.iso"
 ISO_PATH="$WORKDIR/$ISO_NAME"
 IMG_PATH="$WORKDIR/win11.qcow2"
-NOVNC_DIR="$WORKDIR/novnc"
 VNC_DISPLAY=":1"
 VNC_PORT=5901
 NOVNC_PORT=8080
@@ -18,43 +14,21 @@ cd "$WORKDIR"
 # ----------------------------
 # Remove OpenSSH (optional)
 # ----------------------------
-sudo apt remove -y openssh-server openssh-client
-sudo apt purge -y openssh-server openssh-client
+sudo apt remove -y openssh-server openssh-client openssh-sftp-server
 
 # ----------------------------
-# Add QEMU PPA and update
+# Update and install dependencies
 # ----------------------------
-sudo apt install -y software-properties-common
-sudo add-apt-repository -y ppa:jacob/virtualisation
 sudo apt update
-
-# ----------------------------
-# Install dependencies
-# ----------------------------
-sudo apt install -y qemu qemu-kvm qemu-utils virt-manager \
+sudo apt install -y qemu-system-x86 qemu-utils qemu-kvm \
     tigervnc-standalone-server tigervnc-common \
-    wget curl git python3 python3-pip novnc x11vnc net-tools unzip
+    net-tools wget curl git python3 python3-pip npm nodejs netcat
 
 # Upgrade websockify
 sudo pip3 install --upgrade websockify
 
-# ----------------------------
-# Clone noVNC if missing
-# ----------------------------
-if [ ! -d "$NOVNC_DIR" ]; then
-    git clone https://github.com/novnc/noVNC.git "$NOVNC_DIR"
-fi
-
-# ----------------------------
-# VNC xstartup
-# ----------------------------
-mkdir -p ~/.vnc
-cat > ~/.vnc/xstartup <<EOL
-#!/bin/sh
-unset SESSION_MANAGER
-unset DBUS_SESSION_BUS_ADDRESS
-EOL
-chmod +x ~/.vnc/xstartup
+# Install noVNC via npm
+sudo npm install -g @novnc/novnc
 
 # ----------------------------
 # Download ISO if missing
@@ -83,12 +57,9 @@ pkill -f websockify
 # Start TigerVNC server
 # ----------------------------
 echo "Starting TigerVNC server on display $VNC_DISPLAY..."
-vncpasswd -f <<< ""  # no password; optional
 Xvnc $VNC_DISPLAY -geometry 1920x1080 -depth 24 -rfbport $VNC_PORT -SecurityTypes None &
 
-# ----------------------------
-# Wait for TigerVNC to be ready
-# ----------------------------
+# Wait for VNC server
 echo "Waiting for TigerVNC..."
 while ! nc -z localhost $VNC_PORT; do
     sleep 1
@@ -96,15 +67,13 @@ done
 echo "TigerVNC ready!"
 
 # ----------------------------
-# Start noVNC on port 8080
+# Start noVNC via npm
 # ----------------------------
 echo "Launching noVNC on port $NOVNC_PORT..."
-cd "$NOVNC_DIR"
-./utils/novnc_proxy --vnc localhost:$VNC_PORT --listen $NOVNC_PORT &
-cd "$WORKDIR"
+websockify $NOVNC_PORT localhost:$VNC_PORT &
 
 # ----------------------------
-# Start QEMU VM connected to TigerVNC
+# Launch QEMU VM
 # ----------------------------
 echo "Launching QEMU VM..."
 qemu-system-x86_64 \
@@ -118,11 +87,10 @@ qemu-system-x86_64 \
     -vnc $VNC_DISPLAY \
     -vga virtio &
 
-sleep 5
-
 # ----------------------------
 # Browser access
 # ----------------------------
 echo "Setup complete!"
 echo "Open in browser:"
 echo "http://localhost:$NOVNC_PORT/vnc.html?host=localhost&port=$NOVNC_PORT"
+
